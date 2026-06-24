@@ -34,17 +34,29 @@ export default function Chatbot() {
 
       if (!response.ok) throw new Error("Network issues");
 
-      const data = await response.json();
-      console.log("n8n Raw Response:", data); // Browser console (F12) mein exact data dekhne ke liye
+      // Response ko pehle plain text mein parhein taake crash na ho
+      const responseText = await response.text();
+      console.log("n8n Raw Text Response:", responseText);
 
-      // n8n ke har tarah ke object/array response structures ka fail-safe smart check:
+      if (!responseText.trim()) {
+        throw new Error("Empty response received from n8n");
+      }
+
       let botResponse = "";
-      if (typeof data === 'string') {
-        botResponse = data;
-      } else if (Array.isArray(data) && data[0]) {
-        botResponse = data[0].output || data[0].text || data[0].response || JSON.stringify(data[0]);
-      } else {
-        botResponse = data.output || data.text || data.response || data.message || JSON.stringify(data);
+
+      // Check karen agar n8n ne valid JSON bheja hay
+      try {
+        const data = JSON.parse(responseText);
+        if (typeof data === 'string') {
+          botResponse = data;
+        } else if (Array.isArray(data) && data[0]) {
+          botResponse = data[0].output || data[0].text || data[0].response || JSON.stringify(data[0]);
+        } else {
+          botResponse = data.output || data.text || data.response || data.message || JSON.stringify(data);
+        }
+      } catch (e) {
+        // Agar response JSON nahi hay balkay plain text hay, to direct use maren
+        botResponse = responseText;
       }
 
       setMessages((prev) => [...prev, { role: "assistant", content: botResponse }]);
