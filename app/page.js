@@ -1,82 +1,181 @@
 ﻿"use client";
-import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Sparkles } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, User, Sparkles, MessageSquare, Plus, Menu, X } from "lucide-react";
 import { gsap } from "gsap";
 
-export default function Chatbot() {
+const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
+  const chatHistory = [
+    { id: 1, title: "RAG System Overview" },
+    { id: 2, title: "Data Processing Pipeline" },
+    { id: 3, title: "n8n Workflow Details" },
+    { id: 4, title: "Supabase Integration Query" },
+  ];
+
+  return (
+    <aside className={`h-full bg-gray-950/80 backdrop-blur-lg z-20 transition-all duration-300 ease-in-out flex-shrink-0 flex flex-col ${isSidebarOpen ? 'w-64' : 'w-16'}`}>
+      <div 
+        className="p-4 flex items-center h-[69px] cursor-pointer" 
+        onClick={toggleSidebar}
+      >
+        {isSidebarOpen ? (
+          <div className="flex justify-between items-center w-full">
+            <h2 className="text-lg font-semibold text-white whitespace-nowrap">Chat History</h2>
+            <X className="w-5 h-5 flex-shrink-0" />
+          </div>
+        ) : (
+          <div className="flex justify-center items-center w-full">
+            <Menu className="w-5 h-5" />
+          </div>
+        )}
+      </div>
+      
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2">
+        <button className={`w-full flex items-center gap-2 p-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 transition-colors mb-4 ${!isSidebarOpen && 'justify-center'}`}>
+          <Plus className="w-4 h-4 flex-shrink-0" />
+          {isSidebarOpen && <span className="whitespace-nowrap">New Chat</span>}
+        </button>
+        <nav className="flex flex-col gap-1">
+          {chatHistory.map(chat => (
+            <a key={chat.id} href="#" className={`flex items-center gap-3 p-2.5 rounded-md text-sm text-gray-300 hover:bg-gray-800/80 transition-colors ${!isSidebarOpen && 'justify-center'}`}>
+              <MessageSquare className="w-4 h-4 flex-shrink-0" />
+              {isSidebarOpen && <span className="truncate">{chat.title}</span>}
+            </a>
+          ))}
+        </nav>
+      </div>
+
+      <div className={`p-4 border-t border-gray-800/60 transition-opacity duration-300 ${!isSidebarOpen ? 'opacity-0' : 'opacity-100'}`}>
+        <p className="text-xs text-center text-gray-500 whitespace-nowrap">Zero DB • Frontend Session History</p>
+      </div>
+    </aside>
+  );
+};
+
+const ChatMessage = ({ msg }) => {
+  const isUser = msg.role === 'user';
+  return (
+    <div className="message-item flex items-start gap-4">
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isUser ? 'bg-blue-600' : 'bg-gray-800'}`}>
+        {isUser ? <User className="w-4 h-4 text-white" /> : <Sparkles className="w-4 h-4 text-blue-400" />}
+      </div>
+      <div className="flex flex-col pt-0.5">
+        <p className="font-semibold text-gray-300 mb-1">{isUser ? 'You' : 'AI Agent'}</p>
+        <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+      </div>
+    </div>
+  );
+};
+
+const LoadingIndicator = () => (
+  <div className="message-item flex items-start gap-4">
+    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center shrink-0">
+      <Sparkles className="w-4 h-4 text-blue-400" />
+    </div>
+    <div className="flex items-center gap-2 pt-2.5">
+      <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-duration:0.8s]"></span>
+      <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.2s]"></span>
+      <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.4s]"></span>
+    </div>
+  </div>
+);
+
+const ChatInput = ({ input, setInput, handleSend, isLoading }) => (
+  <div className="input-box p-4 bg-transparent sticky bottom-0">
+    <form onSubmit={handleSend} className="max-w-4xl mx-auto relative flex items-center">
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder="Ask anything from your data..."
+        className="w-full bg-gray-700/60 text-gray-100 placeholder-gray-400 rounded-full pl-5 pr-14 py-3 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 shadow-lg"
+        disabled={isLoading}
+      />
+      <button type="submit" disabled={isLoading || !input.trim()} className="absolute right-2.5 w-9 h-9 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-full transition-all duration-200 text-white flex items-center justify-center shadow-md">
+        <Send className="w-4 h-4" />
+      </button>
+    </form>
+  </div>
+);
+
+export default function ChatbotUI() {
   const [messages, setMessages] = useState([
     { role: "assistant", content: "Assalam-o-Alaikum! Mein aap ka RAG AI assistant hoon. Kisi bhi qism ka sawal puchiye, mein aap ke data se dhoond kar jawab doonga!" }
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
-  // Smooth scroll to bottom
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    
-    // GSAP Animation for new messages entering the chat
+
     const items = chatContainerRef.current?.querySelectorAll(".message-item");
     if (items && items.length > 0) {
       const lastItem = items[items.length - 1];
       gsap.fromTo(lastItem, 
-        { opacity: 0, y: 15, scale: 0.98 }, 
+        { opacity: 0, y: 20, scale: 0.95 }, 
         { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "power2.out" }
       );
     }
   }, [messages]);
 
-  // Header Animation on Mount
   useEffect(() => {
-    gsap.from(".chat-header", { opacity: 0, y: -20, duration: 0.6, ease: "power3.out" });
-    gsap.from(".input-box", { opacity: 0, y: 20, duration: 0.6, delay: 0.2, ease: "power3.out" });
+    gsap.fromTo(".chat-header", 
+      { opacity: 0, y: -20 }, 
+      { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", delay: 0.2 }
+    );
+    gsap.fromTo(".input-box", 
+      { opacity: 0, y: 20 }, 
+      { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", delay: 0.4 }
+    );
   }, []);
 
-  const handleSend = async (e) => {
+  const handleSend = useCallback(async (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    
+    // History maintain karne ke liye current state + new message merge kiya
+    const updatedMessages = [...messages, { role: "user", content: userMessage }];
+    setMessages(updatedMessages);
     setIsLoading(true);
 
     try {
-      const response = await fetch("https://n8n.dev.laconsultingcorp.com/webhook/879e6f77-d43d-43cc-b537-89c08eb5f2f0", {
+      // Backup URL lagaya hai agar env load na ho sake
+      const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "https://n8n.dev.laconsultingcorp.com/webhook/879e6f77-d43d-43cc-b537-89c08eb5f2f0";
+      
+      const response = await fetch(webhookUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ chatInput: userMessage }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          chatInput: userMessage,
+          history: updatedMessages // Poori chat history payload ke sath pass ho gayi!
+        }),
       });
 
       if (!response.ok) throw new Error("Network issues");
 
       const responseText = await response.text();
-      console.log("n8n Raw Text Response:", responseText);
-
-      if (!responseText.trim()) {
-        throw new Error("Empty response received from n8n");
-      }
+      if (!responseText.trim()) throw new Error("Empty response received from n8n");
 
       let botResponse = "";
-
       try {
         const data = JSON.parse(responseText);
-        if (typeof data === 'string') {
-          botResponse = data;
-        } else {
-          // n8n ke naye format `{ output: "text" }` ke mutabiq reading:
-          botResponse = data.output || data.text || data.response || JSON.stringify(data);
-        }
+        botResponse = data.output || data.text || (typeof data === 'string' ? data : JSON.stringify(data));
       } catch (e) {
         botResponse = responseText;
       }
 
       setMessages((prev) => [...prev, { role: "assistant", content: botResponse }]);
     } catch (error) {
-      console.error("Webhook Error:", error);
+      console.error("Error communicating with webhook:", error);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "Maazrat, server se rabta nahi ho paa raha. Dobara koshish karen." }
@@ -84,70 +183,41 @@ export default function Chatbot() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [input, isLoading, messages]); // dependency array mein messages add kiya taake history functional rahe
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100">
-      <header className="chat-header bg-slate-900/80 border-b border-slate-800/80 p-4 sticky top-0 z-10 backdrop-blur-md flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
-              <Bot className="w-5 h-5 text-white" />
+    <div className="flex h-screen bg-gray-950 text-gray-200 font-sans overflow-hidden">
+      <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      
+      <main className="flex-1 flex flex-col bg-gray-950/80">
+        <header className="chat-header bg-gray-950/80 border-b border-gray-800/60 p-4 sticky top-0 z-10 backdrop-blur-lg flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-lg font-semibold tracking-wide text-white flex items-center gap-2">
+                RAG AI Agent
+              </h1>
+              <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                Online
+              </p>
             </div>
-            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-slate-900 animate-pulse"></span>
           </div>
-          <div>
-            <h1 className="text-base font-bold tracking-wide flex items-center gap-1.5">
-              RAG AI Agent <Sparkles className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400" />
-            </h1>
-            <p className="text-xs text-slate-400">Direct n8n Integration</p>
+          <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-blue-400" />
           </div>
+        </header>
+
+        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8 max-w-4xl w-full mx-auto">
+          {messages.map((msg, index) => (
+            <ChatMessage key={index} msg={msg} />
+          ))}
+
+          {isLoading && <LoadingIndicator />}
+          <div ref={messagesEndRef} />
         </div>
-      </header>
 
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-6 max-w-3xl w-full mx-auto">
-        {messages.map((msg, index) => (
-          <div key={index} className={`message-item flex gap-3.5 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm ${msg.role === "user" ? "bg-indigo-600" : "bg-slate-800 border border-slate-700"}`}>
-              {msg.role === "user" ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-indigo-400" />}
-            </div>
-            <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm md:text-base leading-relaxed shadow-md ${msg.role === "user" ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none" : "bg-slate-900 text-slate-200 border border-slate-800 rounded-tl-none"}`}>
-              <p className="whitespace-pre-wrap">{msg.content}</p>
-            </div>
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex gap-3.5">
-            <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4 text-indigo-400" />
-            </div>
-            <div className="bg-slate-900 border border-slate-800 px-4 py-4 rounded-2xl rounded-tl-none flex items-center gap-1.5 shadow-md<li>">
-              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-duration:0.8s]"></span>
-              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.2s]"></span>
-              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.4s]"></span>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="input-box p-4 bg-gradient-to-t from-slate-950 via-slate-950 to-transparent sticky bottom-0">
-        <form onSubmit={handleSend} className="max-w-3xl mx-auto relative flex items-center">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything from your data..."
-            className="w-full bg-slate-900/90 text-slate-100 placeholder-slate-500 rounded-2xl pl-4 pr-14 py-3.5 border border-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm md:text-base transition-all duration-200 backdrop-blur-sm shadow-xl"
-            disabled={isLoading}
-          />
-          <button type="submit" disabled={isLoading || !input.trim()} className="absolute right-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 p-2.5 rounded-xl transition-all duration-200 text-white flex items-center justify-center shadow-lg">
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
-        <p className="text-[10px] text-center text-slate-600 mt-2">Zero Database Architecture • Orchestrated via n8n</p>
-      </div>
+        <ChatInput input={input} setInput={setInput} handleSend={handleSend} isLoading={isLoading} />
+      </main>
     </div>
   );
 }
